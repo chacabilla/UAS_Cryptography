@@ -20,25 +20,7 @@ bin_to_character_table = {
     "111100": "8", "111101": "9", "111110": "+", "111111": "/",
 }
 
-character_to_bin_table = {
-    'A': '000000', 'B': '000001', 'C': '000010', 'D': '000011',
-    'E': '000100', 'F': '000101', 'G': '000110', 'H': '000111',
-    'I': '001000', 'J': '001001', 'K': '001010', 'L': '001011',
-    'M': '001100', 'N': '001101', 'O': '001110', 'P': '001111',
-    'Q': '010000', 'R': '010001', 'S': '010010', 'T': '010011',
-    'U': '010100', 'V': '010101', 'W': '010110', 'X': '010111',
-    'Y': '011000', 'Z': '011001', 'a': '011010', 'b': '011011',
-    'c': '011100', 'd': '011101', 'e': '011110', 'f': '011111',
-    'g': '100000', 'h': '100001', 'i': '100010', 'j': '100011',
-    'k': '100100', 'l': '100101', 'm': '100110', 'n': '100111',
-    'o': '101000', 'p': '101001', 'q': '101010', 'r': '101011',
-    's': '101100', 't': '101101', 'u': '101110', 'v': '101111',
-    'w': '110000', 'x': '110001', 'y': '110010', 'z': '110011',
-    '0': '110100', '1': '110101', '2': '110110', '3': '110111',
-    '4': '111000', '5': '111001', '6': '111010', '7': '111011',
-    '8': '111100', '9': '111101', '+': '111110', '/': '111111'
-}
-
+character_to_bin_table = {v: k for k, v in bin_to_character_table.items()}
 
 def binary_sum(array):
     word = ''
@@ -46,97 +28,83 @@ def binary_sum(array):
     for string in array:
         binary_string = ''
         for char in string:
-            # Add padding if the character is a '=' sign
             if char == '=':
                 equals += '='
             else:
-                # Convert the character to a binary string
                 binary_string += bin(ord(char))[2:].rjust(8, '0')
 
         for i in range(0, len(binary_string), 6):
-            # Split into 6 bit chunks
             chunk = binary_string[i:i + 6]
-            # Add a character to the word based on the base64 mapping
             word += bin_to_character_table[chunk.ljust(6, '0')]
-        # If there are any equals add them to the end
         word += equals
     return word
-
 
 class base64:
     def __init__(self, base_input, input_type):
         self.file_name = base_input
         self.input_type = input_type
-        # If we get a media file we get the contents of it first
         if input_type == 'image':
             self.binary_data = self.read_contents()
         elif input_type == 'string':
-            self.binary_data = base_input
+            self.binary_data = self.string_to_binary(base_input)
         else:
             print("Invalid input type. Please choose between 'image' or 'string'")
             exit()
 
     def read_contents(self):
-        # Open image in read binary mode (returns a byte object)
         with open(self.file_name, 'rb') as image:
             content = image.read()
 
         binary_string = ""
         for byte in content:
-            # Convert the byte to a binary string, remove the 'Ob' prefix and fill with padding if needed
             binary_value = bin(byte)[2:].zfill(8)
-            # Add byte to our string
             binary_string += binary_value
 
         return binary_string
 
+    def string_to_binary(self, string):
+        binary_string = ""
+        for char in string:
+            binary_string += bin(ord(char))[2:].zfill(8)
+        return binary_string
+
     def encode(self):
         if self.input_type == 'string':
-            # Calculate the number of sub-strings needed
             num_substrings = (len(self.binary_data) + 2) // 3
-            # Add padding to the input string with '=' characters as needed
-            s = self.binary_data.ljust(num_substrings * 3, '=')
-            # Split and group the string into 3 character long strings
-            substrings = [s[i:i + 3] for i in range(0, num_substrings * 3, 3)]
-            return binary_sum(substrings)
+            s = self.binary_data.ljust(num_substrings * 3 * 8, '0')
+            substrings = [s[i:i + 24] for i in range(0, num_substrings * 24, 24)]
+            base64_encoded = ''
+            for substring in substrings:
+                for i in range(0, len(substring), 6):
+                    chunk = substring[i:i + 6]
+                    base64_encoded += bin_to_character_table[chunk.ljust(6, '0')]
+            padding_length = (3 - (len(self.binary_data) // 8) % 3) % 3
+            return base64_encoded + "=" * padding_length
         else:
-            # Store the binary string into an array with strings that are 6 characters long
             binary_chunks = [self.binary_data[i:i + 6] for i in range(0, len(self.binary_data), 6)]
             encoded_string = ""
             for binary_string in binary_chunks:
                 if len(binary_string) != 6:
                     continue
                 else:
-                    # Map the binary chunk to an ASCII character
                     encoded_string += bin_to_character_table[binary_string]
 
             return encoded_string
 
     def decode(self, encoded_string):
-        if self.input_type == 'string':
-            word = ""
-            binary_string = ''
-            for char in encoded_string:
-                # If the character is not a padding character map it to it's corresponding bits
-                if char != '=':
-                    binary_string += character_to_bin_table[char]
-            # If there are two equal signs remove the last 4 characters since they're used for padding
-            if encoded_string.count('=') == 2:
-                binary_string = binary_string[:-4]
-            # Get the binary string by 8 bit chunks and convert it to an ASCII character
-            for i in range(0, len(binary_string), 8):
-                word += chr(int(binary_string[i:i + 8], 2))
-
-            print("Decoded message: " + word)
-
-        else:
-            binary_string = ""
-            for char in encoded_string:
-                # Map the binary chunk to an ASCII character
+        binary_string = ''
+        for char in encoded_string:
+            if char != '=':
                 binary_string += character_to_bin_table[char]
 
-            # Convert the binary sting into a byte object
+        if self.input_type == 'string':
+            word = ''
+            for i in range(0, len(binary_string), 8):
+                word += chr(int(binary_string[i:i + 8], 2))
+            return word
+
+        else:
             byte_data = bytes(int(binary_string[i:i + 8], 2) for i in range(0, len(binary_string), 8))
-            # Create an image from
             image = Image.open(io.BytesIO(byte_data))
             image.show()
+            
